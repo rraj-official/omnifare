@@ -307,7 +307,7 @@ function ResultsContent() {
             variant="outline"
             size="sm"
             className="gap-2 border-navy-700 text-white hover:bg-navy-800"
-            onClick={fetchFlights}
+            onClick={() => fetchFlights()}
           >
             <RefreshCw className="h-4 w-4" /> Retry
           </Button>

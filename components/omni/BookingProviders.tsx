@@ -105,91 +105,126 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
 
   const [providers, setProviders] = useState<LiveBookingOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [loadingToken, setLoadingToken] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [vpnDialog, setVpnDialog] = useState<VPNDialogState>({
-    open: false, countryName: "", flagEmoji: "", onConfirm: () => {},
+    open: false, countryName: "", flagEmoji: "", onConfirm: () => { },
   });
 
-  // Fetch providers for the 3 cheapest POS tokens only
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  // Fetch providers for the 3 cheapest POS tokens only, sequentially
   useEffect(() => {
-    const tokened = posOptions
-      .filter((p) => p.bookingToken)
-      .sort((a, b) => a.price - b.price)
-      .slice(0, 3);
+    let active = true;
 
-    if (tokened.length === 0) {
-      setFetchError("No booking tokens available. Please search again to get fresh results.");
-      return;
-    }
+    const fetchAll = async () => {
+      const tokened = posOptions
+        .filter((p) => p.bookingToken)
+        .sort((a, b) => a.price - b.price)
+        .slice(0, 3);
 
-    setLoading(true);
-    setFetchError(null);
+      if (tokened.length === 0) {
+        setFetchError("No booking tokens available. Please search again to get fresh results.");
+        return;
+      }
 
-    const items = tokened.map((p) => ({
-      booking_token: p.bookingToken!,
-      country_code: p.countryCode,
-      currency: preferredCurrency,
-    }));
+      setLoading(true);
+      setLoadingMore(false);
+      setFetchError(null);
+      setProviders([]);
 
-    console.log(`[OmniFare BookingProviders] Fetching providers for top ${items.length} cheapest POS tokens…`);
+      const seen = new Map<string, LiveBookingOption>();
 
-    fetch("/api/geoarb/booking-options", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items }),
-    })
-      .then((r) => r.json())
-      .then((data: { results?: Array<{ country_code: string; options: Array<{ id: string; title: string; website: string; price: number; isAirline: boolean; token: string }> }>; error?: string }) => {
-        if (data.error) { setFetchError(data.error); return; }
+      for (let i = 0; i < tokened.length; i++) {
+        if (!active) break;
+        const posPos = tokened[i];
 
-        const results = data.results ?? [];
-        const seen = new Map<string, LiveBookingOption>(); // key: title → cheapest
+        if (i === 0) {
+          setLoading(true);
+        } else {
+          setLoading(false);
+          setLoadingMore(true);
+        }
 
-        for (const result of results) {
-          const sourcePos = tokened.find((p) => p.countryCode === result.country_code);
-          if (!sourcePos) continue;
+        const items = [{
+          booking_token: posPos.bookingToken!,
+          country_code: posPos.countryCode,
+          currency: preferredCurrency,
+        }];
 
-          const riskLevel: "low" | "medium" = MEDIUM_RISK.has(result.country_code) ? "medium" : "low";
+        console.log(`[OmniFare BookingProviders] Fetching providers for POS: ${posPos.countryCode}`);
 
-          for (const opt of result.options) {
-            if (!opt.token || opt.price <= 0) continue;
+        try {
+          const res = await fetch("/api/geoarb/booking-options", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items }),
+          });
 
-            const existing = seen.get(opt.title);
-            if (!existing || opt.price < existing.price) {
-              seen.set(opt.title, {
-                id: opt.id,
-                title: opt.title,
-                website: opt.website,
-                price: opt.price,
-                isAirline: opt.isAirline,
-                token: opt.token,
-                posCountryCode: result.country_code,
-                posCountryName: sourcePos.countryName,
-                posFlagEmoji: sourcePos.flagEmoji,
-                posRiskLevel: riskLevel,
-              });
+          if (!active) break;
+
+          const data = await res.json();
+          if (data.error) {
+            console.warn(`[OmniFare BookingProviders] Error fetching POS ${posPos.countryCode}:`, data.error);
+            continue;
+          }
+
+          const results = data.results ?? [];
+          for (const result of results) {
+            const riskLevel: "low" | "medium" = MEDIUM_RISK.has(result.country_code) ? "medium" : "low";
+
+            for (const opt of result.options) {
+              if (!opt.token || opt.price <= 0) continue;
+
+              const existing = seen.get(opt.title);
+              if (!existing || opt.price < existing.price) {
+                seen.set(opt.title, {
+                  id: opt.id,
+                  title: opt.title,
+                  website: opt.website,
+                  price: opt.price,
+                  isAirline: opt.isAirline,
+                  token: opt.token,
+                  posCountryCode: result.country_code,
+                  posCountryName: posPos.countryName,
+                  posFlagEmoji: posPos.flagEmoji,
+                  posRiskLevel: riskLevel,
+                });
+              }
             }
           }
-        }
 
-        const flat = [...seen.values()];
-        console.log(`[OmniFare BookingProviders] Got ${flat.length} unique providers across ${results.length} POS`);
-
-        if (flat.length === 0) {
-          setFetchError("No booking options returned from any POS. Please try again.");
-        } else {
+          const flat = [...seen.values()];
           setProviders(flat);
+
+        } catch (err) {
+          console.error(`[OmniFare BookingProviders] Failed POS ${posPos.countryCode}:`, err);
         }
-      })
-      .catch((err) => {
-        console.error("[OmniFare BookingProviders] Failed to fetch providers:", err);
-        setFetchError("Failed to load booking options. Please try again.");
-      })
-      .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      }
+
+      if (active) {
+        setLoading(false);
+        setLoadingMore(false);
+
+        setProviders(currentProviders => {
+          if (currentProviders.length === 0) {
+            setFetchError("No booking options returned from any POS. Please try again.");
+          }
+          return currentProviders;
+        });
+      }
+    };
+
+    fetchAll();
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [posOptions]);
 
   const doBooking = async (option: LiveBookingOption) => {
@@ -201,8 +236,25 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
 
     const newTab = window.open("about:blank", "_blank");
     if (newTab) {
-      newTab.document.title = "OmniFare — Loading booking...";
-      newTab.document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui;color:#666;background:#0a0e1a"><div style="text-align:center"><div style="font-size:1.5rem;margin-bottom:0.5rem">✈️ OmniFare</div><div>Fetching your booking link…</div></div></div>`;
+      newTab.document.title = "OmniFare | Redirecting...";
+      newTab.document.body.innerHTML = `
+        <div style="margin:0;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background-color:#0a0e1a;color:#fff;font-family:system-ui, -apple-system, sans-serif;">
+          <style>
+            @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; text-shadow: 0 0 15px rgba(56, 189, 248, 0.6); } 100% { opacity: 0.6; } }
+            @keyframes load { 0% { width: 0%; } 20% { width: 30%; } 50% { width: 60%; } 80% { width: 85%; } 100% { width: 95%; } }
+            .logo { font-size: 2.25rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.025em; animation: pulse 2s infinite ease-in-out; }
+            .logo-icon { display: inline-block; transform: rotate(45deg); margin-right: 8px; color: #38bdf8; }
+            .subtitle { font-size: 1rem; color: #94a3b8; margin-bottom: 2rem; }
+            .bar-container { width: 260px; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 99px; overflow: hidden; margin-bottom: 1rem; }
+            .bar-fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 99px; animation: load 10s cubic-bezier(0.1, 0.7, 1, 0.1) forwards; }
+            .status { font-size: 0.75rem; color: #64748b; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+          </style>
+          <div class="logo"><span class="logo-icon">✈</span>OmniFare</div>
+          <div class="subtitle">Securing your price on ${option.title}...</div>
+          <div class="bar-container"><div class="bar-fill"></div></div>
+          <div class="status">Generating secure deep link</div>
+        </div>
+      `;
     }
 
     try {
@@ -355,7 +407,7 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
 
         {!loading && !fetchError && sorted.length > 0 && (
           <div className="space-y-2">
-            {sorted.map((option, i) => {
+            {sorted.slice(0, page * PAGE_SIZE).map((option, i) => {
               const isCheapest = option.price === cheapestPrice;
               const isLoading = loadingToken === option.token.slice(0, 20);
               const fxFee = Math.round(option.price * 0.03);
@@ -367,11 +419,10 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.04 }}
-                  className={`flex flex-col gap-3 rounded-lg border p-4 transition-colors sm:flex-row sm:items-center sm:justify-between ${
-                    isCheapest
-                      ? "border-electric/40 bg-electric/5"
-                      : "border-navy-700/50 bg-navy-800/30 hover:border-navy-600"
-                  }`}
+                  className={`flex flex-col gap-3 rounded-lg border p-4 transition-colors sm:flex-row sm:items-center sm:justify-between ${isCheapest
+                    ? "border-electric/40 bg-electric/5"
+                    : "border-navy-700/50 bg-navy-800/30 hover:border-navy-600"
+                    }`}
                 >
                   {/* Left: provider info */}
                   <div className="flex items-center gap-3">
@@ -413,12 +464,12 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
                       <div className="text-base font-bold text-white">
                         {formatPrice(convertCurrency(option.price, preferredCurrency), preferredCurrency)}
                       </div>
-                      {!noFxFeeCard && (
+                      {isForeign && !noFxFeeCard && (
                         <div className="text-[10px] text-muted-foreground">
                           + {formatPrice(convertCurrency(fxFee, preferredCurrency), preferredCurrency)} est. FX fee
                         </div>
                       )}
-                      {noFxFeeCard && (
+                      {isForeign && noFxFeeCard && (
                         <div className="text-[10px] text-success">No FX fee</div>
                       )}
                     </div>
@@ -437,6 +488,25 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
                 </motion.div>
               );
             })}
+            {sorted.length > page * PAGE_SIZE && (
+              <div className="mt-4 flex justify-center pb-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-navy-700 text-white hover:bg-navy-800"
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Show more options ({sorted.length - page * PAGE_SIZE} remaining)
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {loadingMore && (
+          <div className="mt-4 flex animate-pulse items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-electric/70" />
+            <span>Fetching more options to find better prices...</span>
           </div>
         )}
 

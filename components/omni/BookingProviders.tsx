@@ -227,17 +227,17 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [posOptions]);
 
-  const doBooking = async (option: LiveBookingOption) => {
+  const doBooking = async (option: LiveBookingOption, newTab: Window | null) => {
     const allowed = await incrementUsage();
-    if (!allowed) return;
+    if (!allowed) {
+      newTab?.close();
+      return;
+    }
 
     setBookingError(null);
     setLoadingToken(option.token.slice(0, 20));
-
-    const newTab = window.open("about:blank", "_blank");
-    if (newTab) {
-      newTab.document.title = "OmniFare | Redirecting...";
-      newTab.document.body.innerHTML = `
+    newTab.document.title = "OmniFare | Redirecting...";
+    newTab.document.body.innerHTML = `
         <div style="margin:0;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background-color:#0a0e1a;color:#fff;font-family:system-ui, -apple-system, sans-serif;">
           <style>
             @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; text-shadow: 0 0 15px rgba(56, 189, 248, 0.6); } 100% { opacity: 0.6; } }
@@ -255,268 +255,288 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
           <div class="status">Generating secure deep link</div>
         </div>
       `;
-    }
+  }
 
-    try {
-      const res = await fetch("/api/geoarb/booking", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token: option.token,
-          currency: preferredCurrency,
-          country_code: option.posCountryCode,
-        }),
-      });
+  try {
+    const res = await fetch("/api/geoarb/booking", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: option.token,
+        currency: preferredCurrency,
+        country_code: option.posCountryCode,
+      }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok || !data.booking_url) {
-        newTab?.close();
-        setBookingError(data.error ?? "Failed to get booking URL. Please try again.");
-        return;
-      }
-
-      if (newTab) {
-        newTab.location.href = data.booking_url;
-      } else {
-        window.open(data.booking_url, "_blank");
-      }
-    } catch {
+    if (!res.ok || !data.booking_url) {
       newTab?.close();
-      setBookingError("Failed to get booking link. Please try again.");
-    } finally {
-      setLoadingToken(null);
+      setBookingError(data.error ?? "Failed to get booking URL. Please try again.");
+      return;
     }
-  };
 
-  const handleContinue = (option: LiveBookingOption) => {
-    const isForeign = option.posCountryCode !== homeCountry;
-    if (isForeign) {
-      setVpnDialog({
-        open: true,
-        countryName: option.posCountryName,
-        flagEmoji: option.posFlagEmoji,
-        onConfirm: () => {
-          setVpnDialog((prev) => ({ ...prev, open: false }));
-          doBooking(option);
-        },
-      });
+    if (newTab) {
+      newTab.location.href = data.booking_url;
     } else {
-      doBooking(option);
+      window.open(data.booking_url, "_blank");
     }
-  };
+  } catch {
+    newTab?.close();
+    setBookingError("Failed to get booking link. Please try again.");
+  } finally {
+    setLoadingToken(null);
+  }
+};
 
-  const sorted = [...providers].sort((a, b) => a.price - b.price);
-  const cheapestPrice = sorted[0]?.price ?? 0;
+const handleContinue = (option: LiveBookingOption) => {
+  const newTab = window.open("about:blank", "_blank");
+  const isForeign = option.posCountryCode !== homeCountry;
 
-  return (
-    <>
-      {/* VPN recommendation dialog */}
-      <Dialog open={vpnDialog.open} onOpenChange={(o) => setVpnDialog((prev) => ({ ...prev, open: o }))}>
-        <DialogContent className="border-navy-700/50 bg-navy-900 text-white sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5 text-electric" />
-              VPN Recommended
-            </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              You are booking via a{" "}
-              <span className="font-semibold text-white">
-                {vpnDialog.flagEmoji} {vpnDialog.countryName}
-              </span>{" "}
-              Point of Sale. For the best experience and to avoid geo-restrictions, we recommend connecting your VPN to{" "}
-              <span className="font-semibold text-electric">{vpnDialog.countryName}</span> before continuing.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-1 rounded-lg border border-navy-700/50 bg-navy-800/60 p-3 text-xs text-muted-foreground">
-            <div className="flex items-start gap-2">
-              <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-electric" />
-              <span>
-                Set your VPN server to <strong className="text-white">{vpnDialog.countryName}</strong>, then click
-                &quot;Continue Anyway&quot; to proceed to the booking site.
-              </span>
-            </div>
+  if (isForeign) {
+    if (newTab) {
+      newTab.document.title = "OmniFare | VPN Required";
+      newTab.document.body.innerHTML = `
+          <div style="margin:0;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background-color:#0a0e1a;color:#fff;font-family:system-ui, -apple-system, sans-serif;">
+             <div style="margin-bottom: 2rem;"><span style="display:inline-block; font-size: 2rem;">✋</span></div>
+             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">Waiting for VPN Confirmation</div>
+             <div style="color: #94a3b8;">Please verify the VPN alert on the previous tab before proceeding.</div>
           </div>
-          <div className="flex gap-3 pt-1">
-            <Button
-              variant="outline"
-              className="flex-1 cursor-pointer border-navy-700 text-muted-foreground"
-              onClick={() => setVpnDialog((prev) => ({ ...prev, open: false }))}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="flex-1 cursor-pointer bg-electric text-white hover:bg-electric-dark"
-              onClick={vpnDialog.onConfirm}
-            >
-              <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-              Continue Anyway
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        `;
+    }
 
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="rounded-xl border border-navy-700/50 bg-navy-900 p-5"
-      >
-        {/* Header */}
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="mb-0.5 text-lg font-semibold text-white">Booking options</h2>
-            <p className="text-xs text-muted-foreground">
-              Best providers across all available Points of Sale, sorted by price
-            </p>
-          </div>
+    setVpnDialog({
+      open: true,
+      countryName: option.posCountryName,
+      flagEmoji: option.posFlagEmoji,
+      onConfirm: () => {
+        setVpnDialog((prev) => ({ ...prev, open: false }));
+        doBooking(option, newTab);
+      },
+      onCancel: () => {
+        setVpnDialog((prev) => ({ ...prev, open: false }));
+        newTab?.close();
+      }
+    });
+  } else {
+    doBooking(option, newTab);
+  }
+};
 
-          {/* FX fee card toggle */}
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-1 sm:border sm:border-navy-700/50 sm:bg-navy-800/50 sm:px-3 py-2 text-xs text-muted-foreground transition hover:border-navy-600">
-            <input
-              type="checkbox"
-              className="h-3.5 w-3.5 cursor-pointer accent-electric"
-              checked={noFxFeeCard}
-              onChange={(e) => setNoFxFeeCard(e.target.checked)}
-            />
-            <CreditCard className="h-3.5 w-3.5 text-electric" />
-            I have a no FX fee card
-          </label>
+const sorted = [...providers].sort((a, b) => a.price - b.price);
+const cheapestPrice = sorted[0]?.price ?? 0;
+
+return (
+  <>
+    {/* VPN recommendation dialog */}
+    <Dialog open={vpnDialog.open} onOpenChange={(o) => setVpnDialog((prev) => ({ ...prev, open: o }))}>
+      <DialogContent className="border-navy-700/50 bg-navy-900 text-white sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-electric" />
+            VPN Recommended
+          </DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            You are booking via a{" "}
+            <span className="font-semibold text-white">
+              {vpnDialog.flagEmoji} {vpnDialog.countryName}
+            </span>{" "}
+            Point of Sale. For the best experience and to avoid geo-restrictions, we recommend connecting your VPN to{" "}
+            <span className="font-semibold text-electric">{vpnDialog.countryName}</span> before continuing.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-1 rounded-lg border border-navy-700/50 bg-navy-800/60 p-3 text-xs text-muted-foreground">
+          <div className="flex items-start gap-2">
+            <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-electric" />
+            <span>
+              Set your VPN server to <strong className="text-white">{vpnDialog.countryName}</strong>, then click
+              &quot;Continue Anyway&quot; to proceed to the booking site.
+            </span>
+          </div>
+        </div>
+        <div className="flex gap-3 pt-1">
+          <Button
+            variant="outline"
+            className="flex-1 cursor-pointer border-navy-700 text-muted-foreground"
+            onClick={() => {
+              if (vpnDialog.onCancel) vpnDialog.onCancel();
+              else setVpnDialog((prev) => ({ ...prev, open: false }));
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 cursor-pointer bg-electric text-white hover:bg-electric-dark"
+            onClick={vpnDialog.onConfirm}
+          >
+            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+            Continue Anyway
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+      className="rounded-xl border border-navy-700/50 bg-navy-900 p-5"
+    >
+      {/* Header */}
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="mb-0.5 text-lg font-semibold text-white">Booking options</h2>
+          <p className="text-xs text-muted-foreground">
+            Best providers across all available Points of Sale, sorted by price
+          </p>
         </div>
 
-        {bookingError && (
-          <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
-            {bookingError}
-          </div>
-        )}
+        {/* FX fee card toggle */}
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-1 sm:border sm:border-navy-700/50 sm:bg-navy-800/50 sm:px-3 py-2 text-xs text-muted-foreground transition hover:border-navy-600">
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5 cursor-pointer accent-electric"
+            checked={noFxFeeCard}
+            onChange={(e) => setNoFxFeeCard(e.target.checked)}
+          />
+          <CreditCard className="h-3.5 w-3.5 text-electric" />
+          I have a no FX fee card
+        </label>
+      </div>
 
-        {loading && (
-          <div className="flex flex-col items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin text-electric" />
-            <span>Loading booking options across all Points of Sale…</span>
-            <span className="text-[11px]">This may take 15–30 seconds</span>
-          </div>
-        )}
+      {bookingError && (
+        <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+          {bookingError}
+        </div>
+      )}
 
-        {!loading && fetchError && (
-          <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
-            <AlertCircle className="h-8 w-8 text-danger/50" />
-            <p>{fetchError}</p>
-          </div>
-        )}
+      {loading && (
+        <div className="flex flex-col items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin text-electric" />
+          <span>Loading booking options across all Points of Sale…</span>
+          <span className="text-[11px]">This may take 15–30 seconds</span>
+        </div>
+      )}
 
-        {!loading && !fetchError && sorted.length > 0 && (
-          <div className="space-y-2">
-            {sorted.slice(0, page * PAGE_SIZE).map((option, i) => {
-              const isCheapest = option.price === cheapestPrice;
-              const isLoading = loadingToken === option.token.slice(0, 20);
-              const fxFee = Math.round(option.price * 0.03);
-              const isForeign = option.posCountryCode !== homeCountry;
+      {!loading && fetchError && (
+        <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
+          <AlertCircle className="h-8 w-8 text-danger/50" />
+          <p>{fetchError}</p>
+        </div>
+      )}
 
-              return (
-                <motion.div
-                  key={option.token.slice(0, 20)}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className={`flex flex-col gap-3 rounded-lg border p-4 transition-colors sm:flex-row sm:items-center sm:justify-between ${isCheapest
-                    ? "border-electric/40 bg-electric/5"
-                    : "border-navy-700/50 bg-navy-800/30 hover:border-navy-600"
-                    }`}
-                >
-                  {/* Left: provider info */}
-                  <div className="flex items-center gap-3">
-                    <ProviderIcon title={option.title} website={option.website} />
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-sm font-medium text-white">{option.title}</span>
-                        {isCheapest && (
-                          <Badge className="bg-electric/20 text-[9px] text-electric">
-                            <Trophy className="mr-0.5 h-2.5 w-2.5" /> Best Price
-                          </Badge>
-                        )}
-                        {option.isAirline && (
-                          <Badge variant="outline" className="border-navy-600 text-[9px] text-muted-foreground">
-                            <Plane className="mr-0.5 h-2.5 w-2.5" /> Airline
-                          </Badge>
-                        )}
-                        <RiskBadge level={option.posRiskLevel} />
-                      </div>
+      {!loading && !fetchError && sorted.length > 0 && (
+        <div className="space-y-2">
+          {sorted.slice(0, page * PAGE_SIZE).map((option, i) => {
+            const isCheapest = option.price === cheapestPrice;
+            const isLoading = loadingToken === option.token.slice(0, 20);
+            const fxFee = Math.round(option.price * 0.03);
+            const isForeign = option.posCountryCode !== homeCountry;
 
-                      {/* POS country row */}
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                        <span>{option.posFlagEmoji} {option.posCountryName} POS</span>
-                        {isForeign && (
-                          <span className="rounded border border-navy-600 px-1 text-[9px] text-muted-foreground">
-                            VPN recommended
-                          </span>
-                        )}
-                      </div>
-                      {option.website && (
-                        <div className="text-[10px] text-muted-foreground/60">{option.website}</div>
+            return (
+              <motion.div
+                key={option.token.slice(0, 20)}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.04 }}
+                className={`flex flex-col gap-3 rounded-lg border p-4 transition-colors sm:flex-row sm:items-center sm:justify-between ${isCheapest
+                  ? "border-electric/40 bg-electric/5"
+                  : "border-navy-700/50 bg-navy-800/30 hover:border-navy-600"
+                  }`}
+              >
+                {/* Left: provider info */}
+                <div className="flex items-center gap-3">
+                  <ProviderIcon title={option.title} website={option.website} />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-sm font-medium text-white">{option.title}</span>
+                      {isCheapest && (
+                        <Badge className="bg-electric/20 text-[9px] text-electric">
+                          <Trophy className="mr-0.5 h-2.5 w-2.5" /> Best Price
+                        </Badge>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Right: price + button */}
-                  <div className="mt-2 flex w-full flex-row items-center gap-3 border-t border-navy-700/50 pt-3 sm:mt-0 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0 sm:gap-4">
-                    <div className="flex-1 text-left sm:text-right">
-                      <div className="text-xl sm:text-base font-bold text-white">
-                        {formatPrice(convertCurrency(option.price, preferredCurrency), preferredCurrency)}
-                      </div>
-                      {isForeign && !noFxFeeCard && (
-                        <div className="text-[10px] text-muted-foreground">
-                          + {formatPrice(convertCurrency(fxFee, preferredCurrency), preferredCurrency)} est. FX fee
-                        </div>
+                      {option.isAirline && (
+                        <Badge variant="outline" className="border-navy-600 text-[9px] text-muted-foreground">
+                          <Plane className="mr-0.5 h-2.5 w-2.5" /> Airline
+                        </Badge>
                       )}
-                      {isForeign && noFxFeeCard && (
-                        <div className="text-[10px] text-success">No FX fee</div>
-                      )}
+                      <RiskBadge level={option.posRiskLevel} />
                     </div>
 
-                    <Button
-                      size="sm"
-                      disabled={isLoading}
-                      onClick={() => handleContinue(option)}
-                      className="flex-1 sm:flex-initial h-11 sm:h-9 cursor-pointer justify-center gap-1.5 bg-electric text-white hover:bg-electric-dark font-medium"
-                    >
-                      {isLoading ? <Loader2 className="h-3.5 w-3.5 sm:h-3 sm:w-3 animate-spin" /> : null}
-                      Continue
-                      <ExternalLink className="h-4 w-4 sm:h-3 sm:w-3" />
-                    </Button>
+                    {/* POS country row */}
+                    <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span>{option.posFlagEmoji} {option.posCountryName} POS</span>
+                      {isForeign && (
+                        <span className="rounded border border-navy-600 px-1 text-[9px] text-muted-foreground">
+                          VPN recommended
+                        </span>
+                      )}
+                    </div>
+                    {option.website && (
+                      <div className="text-[10px] text-muted-foreground/60">{option.website}</div>
+                    )}
                   </div>
-                </motion.div>
-              );
-            })}
-            {sorted.length > page * PAGE_SIZE && (
-              <div className="mt-4 flex justify-center pb-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 border-navy-700 text-white hover:bg-navy-800"
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Show more options ({sorted.length - page * PAGE_SIZE} remaining)
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+                </div>
 
-        {loadingMore && (
-          <div className="mt-4 flex animate-pulse items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin text-electric/70" />
-            <span>Fetching more options to find better prices...</span>
-          </div>
-        )}
+                {/* Right: price + button */}
+                <div className="mt-2 flex w-full flex-row items-center gap-3 border-t border-navy-700/50 pt-3 sm:mt-0 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0 sm:gap-4">
+                  <div className="flex-1 text-left sm:text-right">
+                    <div className="text-xl sm:text-base font-bold text-white">
+                      {formatPrice(convertCurrency(option.price, preferredCurrency), preferredCurrency)}
+                    </div>
+                    {isForeign && !noFxFeeCard && (
+                      <div className="text-[10px] text-muted-foreground">
+                        + {formatPrice(convertCurrency(fxFee, preferredCurrency), preferredCurrency)} est. FX fee
+                      </div>
+                    )}
+                    {isForeign && noFxFeeCard && (
+                      <div className="text-[10px] text-success">No FX fee</div>
+                    )}
+                  </div>
 
-        <Separator className="my-4 bg-navy-700/50" />
-        <p className="text-[10px] text-muted-foreground">
-          Prices include required taxes + fees for 1 adult.
-          {!noFxFeeCard && " Bank FX fees are estimated at 3% and may vary by your card issuer."}
-          {" "}Providers are fetched from multiple Points of Sale — lower prices may require a VPN and a local payment method.
-        </p>
-      </motion.div>
-    </>
-  );
+                  <Button
+                    size="sm"
+                    disabled={isLoading}
+                    onClick={() => handleContinue(option)}
+                    className="flex-1 sm:flex-initial h-11 sm:h-9 cursor-pointer justify-center gap-1.5 bg-electric text-white hover:bg-electric-dark font-medium"
+                  >
+                    {isLoading ? <Loader2 className="h-3.5 w-3.5 sm:h-3 sm:w-3 animate-spin" /> : null}
+                    Continue
+                    <ExternalLink className="h-4 w-4 sm:h-3 sm:w-3" />
+                  </Button>
+                </div>
+              </motion.div>
+            );
+          })}
+          {sorted.length > page * PAGE_SIZE && (
+            <div className="mt-4 flex justify-center pb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 border-navy-700 text-white hover:bg-navy-800"
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Show more options ({sorted.length - page * PAGE_SIZE} remaining)
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {loadingMore && (
+        <div className="mt-4 flex animate-pulse items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin text-electric/70" />
+          <span>Fetching more options to find better prices...</span>
+        </div>
+      )}
+
+      <Separator className="my-4 bg-navy-700/50" />
+      <p className="text-[10px] text-muted-foreground">
+        Prices include required taxes + fees for 1 adult.
+        {!noFxFeeCard && " Bank FX fees are estimated at 3% and may vary by your card issuer."}
+        {" "}Providers are fetched from multiple Points of Sale — lower prices may require a VPN and a local payment method.
+      </p>
+    </motion.div>
+  </>
+);
 }

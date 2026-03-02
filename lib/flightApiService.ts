@@ -199,11 +199,21 @@ function normalise(it: ApiFlightResult, posCountry: string): NormalisedFlight {
   }));
 
   const firstLeg = legs[0];
+  const lastLeg = legs[legs.length - 1] ?? firstLeg;
 
-  // Signature for dedup: Airline + FlightNumber + DepartureTime (date+hour level)
+  // Signature for dedup:
+  // - Route (from→to) so different routes never collide
+  // - Departure time at minute granularity (first 16 chars: "YYYY-MM-DD HH:MM")
+  // - Total legs count to distinguish direct vs. connecting on the same departure
+  // When a flight number exists use it; otherwise fall back to airline + route key
+  const routeKey = `${firstLeg?.departureCode ?? "?"}-${lastLeg?.arrivalCode ?? "?"}`;
+  const flightKey = firstLeg?.flightNumber?.trim()
+    ? firstLeg.flightNumber.trim().replace(/\s+/g, "")
+    : `${firstLeg?.airline ?? "X"}${routeKey}`;
   const sig = [
-    firstLeg?.flightNumber || firstLeg?.airline || "X",
+    flightKey,
     firstLeg?.departureTime?.slice(0, 16) ?? "X",
+    legs.length,
   ].join("|");
 
   const co2Raw = it.carbon_emissions?.CO2e;
@@ -314,8 +324,9 @@ export async function getBookingDetails(params: {
   bookingToken: string;
   currency?: string;
   countryCode?: string;
+  timeoutMs?: number;
 }): Promise<BookingOption[]> {
-  const { bookingToken, currency = "USD", countryCode = "US" } = params;
+  const { bookingToken, currency = "USD", countryCode = "US", timeoutMs = 45_000 } = params;
 
   const qs = new URLSearchParams({
     booking_token: bookingToken,
@@ -327,7 +338,7 @@ export async function getBookingDetails(params: {
   const res = await fetch(`${API_BASE}/getBookingDetails?${qs}`, {
     method: "GET",
     headers: apiHeaders(),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   if (!res.ok) {
@@ -375,7 +386,7 @@ export async function getBookingURL(params: {
   const res = await fetch(`${API_BASE}/getBookingURL?${qs}`, {
     method: "GET",
     headers: apiHeaders(),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!res.ok) {
@@ -491,7 +502,8 @@ export function mergeFlightsBySignature(
           existing.options.set(flight.posCountry, {
             country: flight.posCountry,
             priceUsd: flight.priceUsd,
-            bookingToken: flight.bookingToken,
+            // Prefer the new token, but fall back to the previous one if the cheaper flight lacks it
+            bookingToken: flight.bookingToken ?? prev?.bookingToken ?? null,
           });
         }
       }

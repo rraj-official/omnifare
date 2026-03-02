@@ -82,17 +82,19 @@ function mapApiToFlight(apiFlight: any, idx: number, date: string): Flight {
       aircraft: l.aircraft ?? "",
       flightNumber: l.flightNumber ?? "",
     })),
-    posOptions: (apiFlight.pos_options ?? []).map((opt: any) => ({
-      countryCode: opt.country ?? "",
-      countryName: opt.country_name ?? opt.country ?? "",
-      flagEmoji: opt.flag_emoji ?? "🌐",
-      price: opt.converted_price ?? 0,
-      currency: apiFlight.user_currency ?? "USD",
-      provider: opt.provider ?? opt.country ?? "Unknown",
-      providerWebsite: opt.provider_website ?? undefined,
-      bookingToken: opt.booking_token ?? undefined,
-      riskLevel: (opt.risk_level ?? "low") as "low" | "medium",
-    })),
+    posOptions: (apiFlight.pos_options ?? [])
+      .filter((opt: any) => (opt.converted_price ?? 0) > 0)
+      .map((opt: any) => ({
+        countryCode: opt.country ?? "",
+        countryName: opt.country_name ?? opt.country ?? "",
+        flagEmoji: opt.flag_emoji ?? "🌐",
+        price: opt.converted_price ?? 0,
+        currency: apiFlight.user_currency ?? "USD",
+        provider: opt.provider ?? opt.country ?? "Unknown",
+        providerWebsite: opt.provider_website ?? undefined,
+        bookingToken: opt.booking_token ?? undefined,
+        riskLevel: (opt.risk_level ?? "low") as "low" | "medium",
+      })),
     baggageInfo: { carryOn: true, checkedBag: false },
   };
 }
@@ -131,6 +133,8 @@ function ResultsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [posStats, setPosStats] = useState<any>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const [stopsFilter, setStopsFilter] = useState("any");
   const [sortBy, setSortBy] = useState("price");
@@ -140,7 +144,25 @@ function ResultsContent() {
   const fromAirport = airports.find((a) => a.code === from);
   const toAirport = airports.find((a) => a.code === to);
 
-  const fetchFlights = useCallback(async (signal?: AbortSignal) => {
+  const fetchFlights = useCallback(async (signal?: AbortSignal, forceRefresh = false) => {
+    // Check sessionStorage cache first (avoids re-fetching when user presses Back)
+    if (!forceRefresh) {
+      try {
+        const cacheKey = `omnifare_flights_${from}_${to}_${date}`;
+        const raw = sessionStorage.getItem(cacheKey);
+        if (raw) {
+          const cached: Flight[] = JSON.parse(raw);
+          if (cached.length > 0) {
+            setFlights(cached);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // sessionStorage unavailable — fall through to API
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -181,11 +203,66 @@ function ResultsContent() {
         setPosStats(data.pos_stats);
       }
 
-      const mapped = (data.flights as any[]).map((f, i) => mapApiToFlight(f, i, date));
+      const rawMapped = (data.flights as any[])
+        .map((f, i) => mapApiToFlight(f, i, date))
+        .filter((f) => f.posOptions.length > 0);
+
+      // Secondary visual dedup: same airline + departure + arrival + stops → keep the one with most POS options
+      const visualSeen = new Map<string, number>();
+      const mapped = rawMapped.filter((f, idx) => {
+        const vk = `${f.airline}|${f.departure}|${f.arrival}|${f.stops}`;
+        const existingIdx = visualSeen.get(vk);
+        if (existingIdx === undefined) {
+          visualSeen.set(vk, idx);
+          return true;
+        }
+        // Replace with this one if it has more POS options
+        if (f.posOptions.length > (rawMapped[existingIdx]?.posOptions.length ?? 0)) {
+          visualSeen.set(vk, idx);
+          return true;
+        }
+        return false;
+      });
       setFlights(mapped);
+      setPage(1);
 
       try {
+        const cacheKey = `omnifare_flights_${from}_${to}_${date}`;
+        sessionStorage.setItem(cacheKey, JSON.stringify(mapped));
         sessionStorage.setItem("omnifare_flights", JSON.stringify(mapped));
+        sessionStorage.setItem("omnifare_source", data.source ?? data.cache ?? "live");
+
+        // Save to recent routes for homepage
+        if (mapped.length > 0) {
+          const cheapestFlight = mapped.reduce((best, f) => {
+            const bp = f.posOptions.reduce((mn, p) => Math.min(mn, p.price), Infinity);
+            const fp = f.posOptions.reduce((mn, p) => Math.min(mn, p.price), Infinity);
+            return fp < bp ? f : best;
+          }, mapped[0]);
+          const cheapestPOS = cheapestFlight.posOptions.reduce(
+            (mn, p) => (p.price < mn.price ? p : mn),
+            cheapestFlight.posOptions[0],
+          );
+          const newRoute = {
+            from, to,
+            fromCity: fromAirport?.city ?? from,
+            toCity: toAirport?.city ?? to,
+            date,
+            cheapestPrice: cheapestPOS.price,
+            cheapestCountry: cheapestPOS.countryName,
+            cheapestFlag: cheapestPOS.flagEmoji,
+            currency: "INR",
+            savedAt: Date.now(),
+          };
+          const prevRaw = sessionStorage.getItem("omnifare_recent_routes");
+          const prev = prevRaw ? JSON.parse(prevRaw) : [];
+          // Deduplicate by from+to+date, keep latest 4
+          const deduped = [
+            newRoute,
+            ...prev.filter((r: any) => !(r.from === from && r.to === to && r.date === date)),
+          ].slice(0, 4);
+          sessionStorage.setItem("omnifare_recent_routes", JSON.stringify(deduped));
+        }
       } catch {
         // sessionStorage may be unavailable in some contexts
       }
@@ -307,19 +384,13 @@ function ResultsContent() {
             variant="outline"
             size="sm"
             className="gap-2 border-navy-700 text-white hover:bg-navy-800"
-            onClick={() => fetchFlights()}
+            onClick={() => fetchFlights(undefined, true)}
           >
             <RefreshCw className="h-4 w-4" /> Retry
           </Button>
         </div>
       ) : (
         <>
-          {posStats && (posStats.failed > 0) && (
-            <div className="mt-4 rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning">
-              {posStats.failed} POS source{posStats.failed > 1 ? "s" : ""} unavailable ({posStats.failed_countries?.map((f: any) => f.country ?? f).join(", ")}). Results may be incomplete.
-            </div>
-          )}
-
           <div className="mt-4 text-sm text-muted-foreground">
             Cheapest from{" "}
             <span className="font-semibold text-white">
@@ -331,16 +402,17 @@ function ResultsContent() {
             <h2 className="text-base font-semibold text-white">All flights</h2>
             <p className="text-xs text-muted-foreground">
               {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+              {filtered.length > PAGE_SIZE && ` · showing ${Math.min(page * PAGE_SIZE, filtered.length)} of ${filtered.length}`}
             </p>
           </div>
 
-          <div className="space-y-3 pb-20">
-            {filtered.map((flight, i) => (
+          <div className="space-y-3">
+            {filtered.slice(0, page * PAGE_SIZE).map((flight, i) => (
               <motion.div
                 key={flight.id}
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + i * 0.04 }}
+                transition={{ delay: Math.min(i * 0.03, 0.3) }}
               >
                 <FlightCard flight={flight} />
               </motion.div>
@@ -351,6 +423,21 @@ function ResultsContent() {
               </div>
             )}
           </div>
+
+          {filtered.length > page * PAGE_SIZE && (
+            <div className="mt-6 flex justify-center pb-20">
+              <Button
+                variant="outline"
+                className="gap-2 border-navy-700 text-white hover:bg-navy-800"
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Show more flights ({filtered.length - page * PAGE_SIZE} remaining)
+              </Button>
+            </div>
+          )}
+          {filtered.length <= page * PAGE_SIZE && filtered.length > 0 && (
+            <div className="pb-20" />
+          )}
         </>
       )}
     </div>

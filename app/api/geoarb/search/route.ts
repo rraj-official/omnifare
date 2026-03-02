@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+export const maxDuration = 60;
 import { getPriorityPOS } from "@/lib/geoArbEngine";
 import { convert, currencyForCountry } from "@/lib/exchangeRate";
 import { isValidCurrency } from "@/lib/apiConstants";
@@ -208,8 +209,9 @@ async function applyPricing(merged: MergedFlight[], userCcy: string) {
       })
     );
 
-    posOptions.sort((a, b) => a.total - b.total);
-    const cheapest = posOptions[0];
+    const validPosOptions = posOptions.filter((o) => o.converted_price > 0 && o.total > 0);
+    validPosOptions.sort((a, b) => a.total - b.total);
+    const cheapest = validPosOptions[0];
 
     return {
       signature: f.signature,
@@ -222,7 +224,7 @@ async function applyPricing(merged: MergedFlight[], userCcy: string) {
       cheapest_total: cheapest?.total ?? 0,
       cheapest_pos: cheapest?.country ?? "",
       user_currency: userCcy,
-      pos_options: posOptions,
+      pos_options: validPosOptions,
     };
   }));
 }
@@ -265,7 +267,15 @@ async function setCache(searchKey: string, mergedData: unknown) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body: { origin?: string; destination?: string; date?: string; cabin_class?: string; passengers?: number; user_currency?: string };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid request body. Expected JSON with origin, destination, date." },
+        { status: 400 },
+      );
+    }
     const {
       origin, destination, date,
       cabin_class, passengers,
@@ -289,7 +299,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── 0. Require API key — no mock fallback ───────────────
+    // ── 0. Mock data mode ──────────────────────────────────
+    const useMock = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+    if (useMock) {
+      console.log("[OmniFare] NEXT_PUBLIC_USE_MOCK_DATA=true — returning mock flights");
+      const { mockFlights } = await import("@/lib/mockFlights");
+      const flights = mockFlights.map((f) => ({
+        signature: f.id,
+        airline: f.airline,
+        airline_logo: f.airlineLogo,
+        legs: f.legs.map((l) => ({
+          departureTime: l.departureTime,
+          arrivalTime: l.arrivalTime,
+          departureAirport: l.departureAirport,
+          departureCode: l.departureCode,
+          arrivalAirport: l.arrivalAirport,
+          arrivalCode: l.arrivalCode,
+          durationMinutes: 0,
+          aircraft: "",
+          flightNumber: l.flightNumber ?? "",
+        })),
+        total_duration_minutes: 0,
+        stops: f.stops,
+        co2_kg: f.co2Emissions,
+        cheapest_total: f.posOptions[0]?.price ?? 0,
+        cheapest_pos: f.posOptions[0]?.countryCode ?? "",
+        user_currency: userCcy,
+        pos_options: f.posOptions.map((opt) => ({
+          country: opt.countryCode,
+          country_name: opt.countryName,
+          flag_emoji: opt.flagEmoji,
+          provider: opt.provider,
+          provider_website: opt.providerWebsite ?? "",
+          local_price_usd: opt.price * 0.012,
+          converted_price: opt.price,
+          bank_fee: 0,
+          total: opt.price,
+          fx_rate: 1,
+          risk_level: opt.riskLevel,
+          booking_token: opt.bookingToken ?? null,
+        })),
+      }));
+      return NextResponse.json({
+        cache: "mock", source: "mock", engine: "mock",
+        user_currency: userCcy, flights,
+      });
+    }
+
+    // ── 0b. Require API key — no mock fallback ──────────────
     if (!process.env.RAPIDAPI_KEY) {
       console.error("[OmniFare] RAPIDAPI_KEY is not set. Cannot perform live search.");
       return NextResponse.json(
@@ -324,12 +381,13 @@ export async function POST(request: NextRequest) {
       currency: "USD",
     });
 
-    // Log per-POS results
+    // Log per-POS results + token coverage
     for (const r of posResults) {
       if (r.error) {
         console.error(`[OmniFare] POS ${r.country} FAILED (${r.latencyMs}ms): ${r.error}`);
       } else {
-        console.log(`[OmniFare] POS ${r.country} OK — ${r.flights.length} flights (${r.latencyMs}ms)`);
+        const withToken = r.flights.filter((f) => f.bookingToken).length;
+        console.log(`[OmniFare] POS ${r.country} OK — ${r.flights.length} flights, ${withToken} with booking token (${r.latencyMs}ms)`);
       }
     }
 
@@ -372,9 +430,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 5. Apply FX + bank fee ──────────────────────────────
-    const pricedFlights = await applyPricing(merged, userCcy);
+    const pricedAll = await applyPricing(merged, userCcy);
+    const pricedFlights = pricedAll.filter((f) => f.cheapest_total > 0);
     pricedFlights.sort((a, b) => a.cheapest_total - b.cheapest_total);
-    console.log(`[OmniFare] Returning ${pricedFlights.length} merged flights for ${origin}→${destination}`);
+    const posWithToken = pricedFlights.reduce((n, f) => n + f.pos_options.filter((o: any) => o.booking_token).length, 0);
+    const posTotal = pricedFlights.reduce((n, f) => n + f.pos_options.length, 0);
+    console.log(`[OmniFare] Returning ${pricedFlights.length} merged flights for ${origin}→${destination} (filtered ${pricedAll.length - pricedFlights.length} zero-price) | booking tokens: ${posWithToken}/${posTotal} POS options`);
 
     // ── 6. Write to cache (async, non-blocking) ─────────────
     setCache(searchKey, pricedFlights);

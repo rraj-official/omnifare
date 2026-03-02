@@ -1,69 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBookingDetails, getBookingURL } from "@/lib/flightApiService";
+import { getBookingURL } from "@/lib/flightApiService";
 
+export const maxDuration = 60;
+
+// Takes the provider-level token from getBookingDetails and returns the deeplink URL.
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { booking_token, currency = "USD", country_code = "US" } = body;
-
-    if (!booking_token) {
+    let body: { token?: string; currency?: string; country_code?: string };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
       return NextResponse.json(
-        { error: "Missing required field: booking_token" },
+        { error: "Invalid request body. Expected JSON with token." },
         { status: 400 },
       );
     }
 
-    const hasApiKey = !!process.env.RAPIDAPI_KEY;
-    if (!hasApiKey) {
+    const { token, currency = "USD", country_code = "US" } = body;
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "Missing required field: token" },
+        { status: 400 },
+      );
+    }
+
+    if (process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true") {
+      return NextResponse.json(
+        { error: "Booking is not available in mock mode. Set NEXT_PUBLIC_USE_MOCK_DATA=false in .env.local" },
+        { status: 503 },
+      );
+    }
+
+    if (!process.env.RAPIDAPI_KEY) {
       return NextResponse.json(
         { error: "RAPIDAPI_KEY not configured" },
         { status: 503 },
       );
     }
 
-    console.log(`[OmniFare Booking] getBookingDetails for token=${booking_token.slice(0, 30)}… cc=${country_code} ccy=${currency}`);
-    const options = await getBookingDetails({
-      bookingToken: booking_token,
-      currency,
-      countryCode: country_code,
-    });
-    console.log(`[OmniFare Booking] Got ${options.length} booking options`);
+    console.log(`[OmniFare] getBookingURL token=${token.slice(0, 30)}… cc=${country_code} ccy=${currency}`);
+    const bookingUrl = await getBookingURL({ bookingToken: token, currency, countryCode: country_code });
+    console.log(`[OmniFare] getBookingURL → ${bookingUrl.slice(0, 80)}…`);
 
-    let bookingUrl: string | null = null;
-    const bestOption = options[0];
-    if (bestOption?.token) {
-      try {
-        console.log(`[OmniFare Booking] Fetching bookingURL for provider=${bestOption.title}`);
-        bookingUrl = await getBookingURL({
-          bookingToken: bestOption.token,
-          currency,
-          countryCode: country_code,
-        });
-        console.log(`[OmniFare Booking] Got bookingURL: ${bookingUrl?.slice(0, 80)}…`);
-      } catch (urlErr) {
-        console.warn(`[OmniFare Booking] getBookingURL failed: ${urlErr}. Falling back to website.`);
-      }
-    }
-
-    if (!bookingUrl && bestOption?.website) {
-      bookingUrl = bestOption.website.startsWith("http")
-        ? bestOption.website
-        : `https://${bestOption.website}`;
-      console.log(`[OmniFare Booking] Using website fallback: ${bookingUrl}`);
-    }
-
-    return NextResponse.json({
-      options,
-      booking_url: bookingUrl,
-    });
+    return NextResponse.json({ booking_url: bookingUrl });
   } catch (err) {
-    console.error(`[OmniFare Booking] FAILED:`, err instanceof Error ? err.message : err);
+    console.error("[OmniFare] getBookingURL failed:", err instanceof Error ? err.message : err);
     return NextResponse.json(
-      {
-        error: "Booking details failed",
-        detail: err instanceof Error ? err.message : "Unknown",
-      },
-      { status: 500 },
+      { error: "Failed to get booking URL. Please try again.", detail: err instanceof Error ? err.message : "Unknown" },
+      { status: 502 },
     );
   }
 }

@@ -48,10 +48,11 @@ interface VPNDialogState {
   onConfirm: () => void;
 }
 
-export function POSTable({ flight }: { flight: Flight }) {
+export function POSTable({ flight, dataSource }: { flight: Flight; dataSource?: "live" | "mock" | null }) {
   const { preferredCurrency, homeCountry, noFxFeeCard, setNoFxFeeCard } = useAppState();
   const { incrementUsage } = useAuth();
-  const sorted = [...flight.posOptions].sort((a, b) => a.price - b.price);
+  const [displayOptions, setDisplayOptions] = useState<POSOption[]>(flight.posOptions);
+  const sorted = [...displayOptions].sort((a, b) => a.price - b.price);
   const cheapestPrice = sorted[0]?.price ?? 0;
 
   const [loadingPOS, setLoadingPOS] = useState<string | null>(null);
@@ -78,22 +79,32 @@ export function POSTable({ flight }: { flight: Flight }) {
     const key = `${pos.countryCode}-${pos.provider}`;
     setLoadingPOS(key);
 
-    try {
-      const bookingToken = (pos as any).bookingToken ?? (pos as any).booking_token;
+    const bookingToken = (pos as any).bookingToken ?? (pos as any).booking_token;
+    const isMock = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
 
-      // No live booking token — use providerWebsite directly (mock / demo mode)
-      if (!bookingToken) {
-        if (pos.providerWebsite) {
-          // Fetch favicon for the provider while we're at it
-          const fav = getFaviconUrl(pos.providerWebsite);
-          if (fav) setPosIcons((prev) => ({ ...prev, [pos.provider]: fav }));
-          window.open(pos.providerWebsite, "_blank");
-        } else {
-          setBookingError("No booking link available for this option.");
-        }
-        return;
+    console.log(`[OmniFare] doBooking: provider=${pos.provider} cc=${pos.countryCode} token=${bookingToken ? bookingToken.slice(0, 30) + "…" : "MISSING"}`);
+
+    if (!bookingToken) {
+      if (isMock && pos.providerWebsite) {
+        // Mock mode only: open the static OTA homepage directly
+        const fav = getFaviconUrl(pos.providerWebsite);
+        if (fav) setPosIcons((prev) => ({ ...prev, [pos.provider]: fav }));
+        window.open(pos.providerWebsite, "_blank");
+      } else {
+        setBookingError("No booking token for this flight. Try searching again to refresh results.");
       }
+      setLoadingPOS(null);
+      return;
+    }
 
+    // Open window immediately on user click to avoid popup blocker
+    const newTab = window.open("about:blank", "_blank");
+    if (newTab) {
+      newTab.document.title = "OmniFare — Loading booking...";
+      newTab.document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui;color:#666;background:#0a0e1a"><div style="text-align:center"><div style="font-size:1.5rem;margin-bottom:0.5rem">✈️ OmniFare</div><div>Fetching your booking link…</div></div></div>`;
+    }
+
+    try {
       const res = await fetch("/api/geoarb/booking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,38 +112,73 @@ export function POSTable({ flight }: { flight: Flight }) {
           booking_token: bookingToken,
           currency: preferredCurrency,
           country_code: pos.countryCode,
+          provider: pos.provider,
         }),
       });
 
       const data = await res.json();
 
-      if (data.options?.length > 0) {
-        const newIcons: Record<string, string> = {};
-        for (const opt of data.options) {
-          if (opt.website) {
-            const fav = getFaviconUrl(opt.website);
-            if (fav) newIcons[opt.title] = fav;
-          }
-        }
-        setPosIcons((prev) => ({ ...prev, ...newIcons }));
+      // Debug: log request + response when Book Now is clicked
+      console.log("[OmniFare Booking Debug] Request:", {
+        provider: pos.provider,
+        countryCode: pos.countryCode,
+        currency: preferredCurrency,
+      });
+      console.log("[OmniFare Booking Debug] Response:", {
+        status: res.status,
+        ok: res.ok,
+        booking_url: data.booking_url,
+        options_count: data.options?.length,
+        options: data.options?.map((o: { title: string; website?: string; token?: string }) => ({
+          title: o.title,
+          website: o.website,
+          has_token: !!o.token,
+        })),
+        error: data.error,
+      });
+
+      if (!res.ok) {
+        newTab?.close();
+        setBookingError(data.error ?? `Booking failed (${res.status}). Please try again.`);
+        setLoadingPOS(null);
+        return;
       }
 
-      if (data.booking_url) {
-        window.open(data.booking_url, "_blank");
-      } else if (data.options?.length > 0) {
-        const bestOption = data.options[0];
-        if (bestOption.website) {
-          const url = bestOption.website.startsWith("http")
-            ? bestOption.website
-            : `https://${bestOption.website}`;
-          window.open(url, "_blank");
-        } else {
-          setBookingError("No booking URL available for this option.");
+      // Update this row's provider name + icon from the real API response
+      if (data.options?.length > 0 && dataSource === "live") {
+        const matchedOption = pos.provider
+          ? data.options.find((o: { title: string }) => o.title.toLowerCase().includes(pos.provider.toLowerCase()))
+          : null;
+        const displayOption = matchedOption ?? data.options[0];
+        if (displayOption) {
+          const newIcons: Record<string, string> = {};
+          if (displayOption.website) {
+            const fav = getFaviconUrl(displayOption.website);
+            if (fav) newIcons[displayOption.title] = fav;
+          }
+          setDisplayOptions((prev) =>
+            prev.map((p) =>
+              p.countryCode === pos.countryCode && p.provider === pos.provider
+                ? { ...p, provider: displayOption.title, providerWebsite: displayOption.website ?? p.providerWebsite }
+                : p
+            )
+          );
+          if (Object.keys(newIcons).length > 0) setPosIcons((prev) => ({ ...prev, ...newIcons }));
         }
+      }
+
+      const targetUrl = data.booking_url ?? null;
+
+      if (targetUrl && newTab) {
+        newTab.location.href = targetUrl;
+      } else if (targetUrl) {
+        window.open(targetUrl, "_blank");
       } else {
-        setBookingError("Could not retrieve booking details. Please try again.");
+        newTab?.close();
+        setBookingError(data.error ?? "Failed to get booking URL. Please try again.");
       }
     } catch {
+      newTab?.close();
       setBookingError("Failed to get booking link. Please try again.");
     } finally {
       setLoadingPOS(null);
@@ -288,7 +334,19 @@ export function POSTable({ flight }: { flight: Flight }) {
       >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="mb-1 text-lg font-semibold text-white">Booking options</h2>
+            <div className="mb-1 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-white">Booking options</h2>
+              {dataSource === "live" && (
+                <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-electric/20 text-electric">
+                  Live
+                </span>
+              )}
+              {dataSource === "mock" && process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true" && (
+                <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-navy-600 text-muted-foreground">
+                  Mock
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               Prices from multiple Points of Sale worldwide, converted to your preferred currency
             </p>

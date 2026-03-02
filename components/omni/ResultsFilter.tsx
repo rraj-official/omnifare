@@ -25,7 +25,7 @@ export function ResultsFilter({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select value={stopsFilter} onValueChange={setStopsFilter}>
-        <SelectTrigger className="h-8 w-[120px] border-navy-700 bg-navy-800 text-xs">
+        <SelectTrigger className="h-8 w-[130px] border-navy-700 bg-navy-800 text-xs">
           <Plane className="mr-1 h-3.5 w-3.5" />
           <SelectValue placeholder="Stops" />
         </SelectTrigger>

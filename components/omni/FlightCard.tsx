@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { type Flight, type POSOption, getCheapestPOS, formatPrice, convertCurrency } from "@/lib/mockFlights";
 import { useAppState } from "@/hooks/useAppState";
-import { ProviderIcon } from "@/components/omni/ProviderIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -75,7 +74,7 @@ export function FlightCard({ flight }: { flight: Flight }) {
 
   const cheapest = getCheapestPOS(flight);
   const indianOption = flight.posOptions.find((p) => p.countryCode === "IN");
-  const displayPrice = indianOption?.price ?? cheapest.price;
+  const displayPrice = indianOption && indianOption.price > 0 ? indianOption.price : cheapest.price;
   const convertedPrice = convertCurrency(displayPrice, preferredCurrency);
   const fxFee = Math.round(convertedPrice * 0.03);
 
@@ -149,6 +148,25 @@ export function FlightCard({ flight }: { flight: Flight }) {
               Best Price: {cheapest.flagEmoji} {cheapest.countryName}
             </Badge>
             <SmallRiskBadge level={cheapest.riskLevel} />
+          </div>
+          {/* POS country flags row */}
+          <div className="flex items-center gap-0.5 mt-0.5">
+            {flight.posOptions
+              .slice()
+              .sort((a, b) => a.price - b.price)
+              .slice(0, 6)
+              .map((pos) => (
+                <span
+                  key={pos.countryCode}
+                  title={`${pos.countryName}: ${formatPrice(convertCurrency(pos.price, preferredCurrency), preferredCurrency)}`}
+                  className="text-base leading-none cursor-default"
+                >
+                  {pos.flagEmoji}
+                </span>
+              ))}
+            {flight.posOptions.length > 6 && (
+              <span className="text-[10px] text-muted-foreground ml-0.5">+{flight.posOptions.length - 6}</span>
+            )}
           </div>
           <button className="mt-1 text-muted-foreground transition-colors hover:text-white">
             {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
@@ -228,31 +246,48 @@ export function FlightCard({ flight }: { flight: Flight }) {
                 )}
               </div>
 
-              {/* Booking options preview */}
+              {/* POS breakdown — real prices from searchFlights across all countries */}
               <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground">Top booking options</h4>
+                <h4 className="text-xs font-medium text-muted-foreground">
+                  Available from {flight.posOptions.length} countr{flight.posOptions.length === 1 ? "y" : "ies"}
+                </h4>
                 {flight.posOptions
                   .slice()
                   .sort((a, b) => a.price - b.price)
-                  .slice(0, 3)
-                  .map((pos) => {
+                  .map((pos, i) => {
                     const converted = convertCurrency(pos.price, preferredCurrency);
+                    const isCheapest = i === 0;
                     return (
                       <div
-                        key={`${pos.countryCode}-${pos.provider}`}
+                        key={pos.countryCode}
                         className="flex items-center justify-between rounded-lg border border-navy-700/30 bg-navy-800/30 px-3 py-2"
                       >
-                        <div className="flex items-center gap-2.5">
-                          <ProviderIcon providerLogo={pos.providerLogo} provider={pos.provider} size="sm" />
+                        <div className="flex items-center gap-2">
+                          <span className="text-base leading-none">{pos.flagEmoji}</span>
                           <div>
-                            <span className="text-xs font-medium text-white">{pos.provider}</span>
-                            <div className="text-[10px] text-muted-foreground">{pos.flagEmoji} {pos.countryName} POS</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium text-white">{pos.countryName}</span>
+                              {isCheapest && (
+                                <span className="text-[9px] text-electric">↓ cheapest</span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">{pos.countryCode} POS · <SmallRiskBadge level={pos.riskLevel} /></div>
                           </div>
                         </div>
-                        <span className="text-xs font-semibold text-white">{formatPrice(converted, preferredCurrency)}</span>
+                        <div className="text-right">
+                          <div className="text-xs font-semibold text-white">{formatPrice(converted, preferredCurrency)}</div>
+                          {!noFxFeeCard && (
+                            <div className="text-[9px] text-muted-foreground">
+                              +{formatPrice(Math.round(converted * 0.03), preferredCurrency)} FX
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
+                <p className="text-[10px] text-muted-foreground">
+                  Provider names are loaded on the booking page.
+                </p>
               </div>
 
               <div className="flex justify-end">

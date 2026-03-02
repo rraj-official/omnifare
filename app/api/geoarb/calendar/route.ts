@@ -106,24 +106,28 @@ function overlayCalendars(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { origin, destination, date, currency = "USD" } = body;
+    const {
+      origin, destination, currency = "USD",
+      date = new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+    } = body;
 
-    if (!origin || !destination || !date) {
+    if (!origin || !destination) {
       return NextResponse.json(
-        { error: "Missing required fields", required: ["origin", "destination", "date"] },
+        { error: "Missing required fields", required: ["origin", "destination"] },
         { status: 400 },
       );
     }
 
     const originCC = countryForAirport(origin);
     const destCC = countryForAirport(destination);
+    const useMock = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
     const hasApiKey = !!process.env.RAPIDAPI_KEY;
 
     let originCal: { posCountry: string; days: CalendarDay[] };
     let destCal: { posCountry: string; days: CalendarDay[] };
     let source: "live" | "mock" = "mock";
 
-    if (hasApiKey) {
+    if (!useMock && hasApiKey) {
       source = "live";
       const [oRes, dRes] = await Promise.all([
         getCalendarForPOS({ departureId: origin, arrivalId: destination, outboundDate: date, countryCode: originCC, currency }).catch(() => null),

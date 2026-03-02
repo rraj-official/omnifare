@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/hooks/useAppState";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,6 +32,40 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
   const [originOpen, setOriginOpen] = useState(false);
   const [destOpen, setDestOpen] = useState(false);
   const [validationError, setValidationError] = useState("");
+  const [calendarPrices, setCalendarPrices] = useState<Record<string, number>>({});
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  const calendarFetchRef = useRef<AbortController | null>(null);
+
+  // Fetch real calendar prices when both origin + destination are set
+  useEffect(() => {
+    if (!origin || !destination) { setCalendarPrices({}); return; }
+    if (calendarFetchRef.current) calendarFetchRef.current.abort();
+    const ac = new AbortController();
+    calendarFetchRef.current = ac;
+    setLoadingPrices(true);
+    fetch("/api/geoarb/calendar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ origin, destination }),
+      signal: ac.signal,
+    })
+      .then((r) => r.json())
+      .then((data: { prices?: Record<string, number>; days?: Array<{ date: string; price?: number | null; cheapest_price?: number | null }> }) => {
+        if (ac.signal.aborted) return;
+        if (data.prices) { setCalendarPrices(data.prices); return; }
+        if (data.days) {
+          const map: Record<string, number> = {};
+          for (const d of data.days) {
+            const p = d.cheapest_price ?? d.price;
+            if (p) map[d.date] = p;
+          }
+          setCalendarPrices(map);
+        }
+      })
+      .catch(() => {/* silently ignore — calendar is optional */})
+      .finally(() => { if (!ac.signal.aborted) setLoadingPrices(false); });
+    return () => ac.abort();
+  }, [origin, destination]);
 
   const handleSearch = () => {
     if (!origin && !destination) {
@@ -217,6 +251,8 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
                   selected={departureDate}
                   onSelect={setDepartureDate}
                   showPrices={showPriceGrid}
+                  livePrices={calendarPrices}
+                  loadingPrices={loadingPrices}
                 />
               </PopoverContent>
             </Popover>
@@ -238,6 +274,8 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
                     selected={returnDate}
                     onSelect={setReturnDate}
                     showPrices={showPriceGrid}
+                    livePrices={calendarPrices}
+                    loadingPrices={loadingPrices}
                   />
                 </PopoverContent>
               </Popover>
@@ -261,7 +299,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
           </AnimatePresence>
           <Button onClick={handleSearch} className="h-10 gap-2 rounded-full bg-electric px-6 text-white hover:bg-electric-dark">
             <Search className="h-4 w-4" />
-            Explore
+            Search
           </Button>
         </div>
       </div>

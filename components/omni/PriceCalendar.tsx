@@ -8,24 +8,6 @@ import {
   isSameDay, addMonths, subMonths, getDay, isToday, isBefore,
 } from "date-fns";
 
-const mockPrices: Record<string, number> = {};
-function seedPrices(year: number, month: number) {
-  const start = new Date(year, month, 1);
-  const end = endOfMonth(start);
-  const days = eachDayOfInterval({ start, end });
-  days.forEach((d) => {
-    const key = format(d, "yyyy-MM-dd");
-    if (!mockPrices[key]) {
-      const base = 4200 + Math.floor(Math.abs(Math.sin(d.getTime() / 86400000) * 3000));
-      mockPrices[key] = base;
-    }
-  });
-}
-
-for (let m = 0; m < 12; m++) {
-  seedPrices(2026, m);
-}
-
 function getPriceColor(price: number): string {
   if (price < 4800) return "text-success";
   if (price < 5800) return "text-electric-light";
@@ -36,9 +18,12 @@ interface PriceCalendarProps {
   selected: Date | undefined;
   onSelect: (d: Date | undefined) => void;
   showPrices: boolean;
+  /** Optional: live prices keyed by "yyyy-MM-dd" */
+  livePrices?: Record<string, number>;
+  loadingPrices?: boolean;
 }
 
-export function PriceCalendar({ selected, onSelect, showPrices }: PriceCalendarProps) {
+export function PriceCalendar({ selected, onSelect, showPrices, livePrices, loadingPrices }: PriceCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(selected ?? new Date());
   const today = new Date();
 
@@ -87,7 +72,7 @@ export function PriceCalendar({ selected, onSelect, showPrices }: PriceCalendarP
         ))}
         {days.map((day) => {
           const key = format(day, "yyyy-MM-dd");
-          const price = mockPrices[key];
+          const price = livePrices?.[key];
           const isSelected = selected && isSameDay(day, selected);
           const isPast = isBefore(day, today) && !isToday(day);
           const isCurrentMonth = isSameMonth(day, currentMonth);
@@ -108,10 +93,14 @@ export function PriceCalendar({ selected, onSelect, showPrices }: PriceCalendarP
               <span className={`text-xs ${isSelected ? "font-bold text-white" : isToday(day) ? "font-bold text-electric" : "text-white"}`}>
                 {format(day, "d")}
               </span>
-              {showPrices && price && !isPast && (
-                <span className={`text-[8px] leading-tight ${isSelected ? "text-white/80" : getPriceColor(price)}`}>
-                  ₹{(price / 1000).toFixed(1)}k
-                </span>
+              {showPrices && !isPast && (
+                loadingPrices
+                  ? <span className="text-[8px] text-muted-foreground/40">…</span>
+                  : price
+                    ? <span className={`text-[8px] leading-tight ${isSelected ? "text-white/80" : getPriceColor(price)}`}>
+                        ₹{(price / 1000).toFixed(1)}k
+                      </span>
+                    : null
               )}
             </button>
           );
@@ -123,6 +112,7 @@ export function PriceCalendar({ selected, onSelect, showPrices }: PriceCalendarP
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-success" /> Low</span>
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-electric-light" /> Medium</span>
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-red-400" /> High</span>
+          {loadingPrices && <span className="text-muted-foreground/60">Loading…</span>}
         </div>
       )}
     </div>

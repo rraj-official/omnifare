@@ -91,39 +91,58 @@ export function FlightCard({ flight }: { flight: Flight }) {
       className="group overflow-hidden rounded-xl border border-navy-700/50 bg-navy-900 transition-all hover:border-electric/30"
     >
       <div
-        className="flex cursor-pointer flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5"
+        className="flex cursor-pointer flex-col gap-5 p-5 sm:flex-row sm:items-center sm:gap-4 sm:p-5"
         onClick={() => setExpanded(!expanded)}
       >
-        <AirlineLogo airline={flight.airline} airlineLogo={flight.airlineLogo} />
+        <div className="flex w-full items-start justify-between sm:w-auto sm:justify-start">
+          <AirlineLogo airline={flight.airline} airlineLogo={flight.airlineLogo} />
 
-        <div className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="min-w-[180px]">
-            <div className="text-base font-semibold text-white">
+          <div className="ml-3 flex-1 sm:hidden text-left">
+            <div className="text-lg font-bold text-white tracking-tight">
               {flight.departure} – {flight.arrival}
             </div>
-            <div className="text-xs text-muted-foreground">{flight.airline}</div>
+            <div className="flex flex-wrap items-center gap-2 mt-0.5">
+              <span className="text-sm text-muted-foreground">{flight.airline}</span>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="outline" className="border-electric/30 bg-electric/10 text-[10px] text-electric px-1.5 py-0 whitespace-nowrap">
+                  Best Price: {cheapest.flagEmoji} {cheapest.countryName}
+                </Badge>
+                <SmallRiskBadge level={cheapest.riskLevel} />
+              </div>
+            </div>
           </div>
+        </div>
 
-          <div className="min-w-[100px] text-center">
-            <div className="text-sm text-white">{flight.duration}</div>
-            <div className="text-xs text-muted-foreground">
+        {/* Desktop Routing / Airline Details (Hidden on mobile where we stacked above) */}
+        <div className="hidden min-w-[180px] flex-col sm:flex">
+          <div className="text-base font-semibold text-white">
+            {flight.departure} – {flight.arrival}
+          </div>
+          <div className="text-xs text-muted-foreground">{flight.airline}</div>
+        </div>
+
+        {/* Mobile horizontal row container / Desktop flex row */}
+        <div className="flex flex-row items-center justify-between w-full px-1 py-1 sm:w-auto sm:flex-1 sm:justify-center sm:gap-8 lg:gap-14 sm:px-0 sm:py-0">
+          <div className="flex flex-col items-center">
+            <div className="text-sm sm:text-sm text-white">{flight.duration}</div>
+            <div className="text-xs sm:text-xs text-muted-foreground font-medium">
               {flight.departureCode}–{flight.arrivalCode}
             </div>
           </div>
 
-          <div className="min-w-[120px] text-center">
-            <div className={`text-sm ${flight.stops === 0 ? "text-success" : "text-warning"}`}>
+          <div className="flex flex-col items-center">
+            <div className={`text-sm sm:text-sm font-medium ${flight.stops === 0 ? "text-success" : "text-warning"}`}>
               {stopsText}
             </div>
             {flight.stopLocations && (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground text-center">
                 {flight.stopLocations.join(", ")}
               </div>
             )}
           </div>
 
-          <div className="min-w-[100px] text-center">
-            <div className="text-sm text-white">{flight.co2Emissions} kg CO₂e</div>
+          <div className="flex flex-col items-center">
+            <div className="text-sm sm:text-sm text-white">{flight.co2Emissions} <span className="text-[10px] sm:text-xs text-muted-foreground ml-0.5">kg CO₂e</span></div>
             {flight.emissionsChange && (
               <div className={`text-xs ${flight.emissionsChange.startsWith("-") ? "text-success" : "text-muted-foreground"}`}>
                 {flight.emissionsChange} emissions
@@ -132,25 +151,10 @@ export function FlightCard({ flight }: { flight: Flight }) {
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-1">
-          <div className="text-right">
-            <div className="text-lg font-bold text-white">
-              {formatPrice(convertedPrice, preferredCurrency)}
-            </div>
-            {!noFxFeeCard && (
-              <div className="text-[10px] text-muted-foreground">
-                + {formatPrice(fxFee, preferredCurrency)} est. FX fee (3%)
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className="border-electric/30 bg-electric/10 text-[10px] text-electric">
-              Best Price: {cheapest.flagEmoji} {cheapest.countryName}
-            </Badge>
-            <SmallRiskBadge level={cheapest.riskLevel} />
-          </div>
+        {/* Pricing & Badges Right Side / Bottom */}
+        <div className="flex w-full flex-row items-end justify-between pt-2 sm:w-auto sm:flex-col sm:items-end sm:gap-1.5 sm:pt-0">
           {/* POS country flags row */}
-          <div className="flex items-center gap-0.5 mt-0.5">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-0.5 sm:order-3 pb-1 sm:pb-0">
             {flight.posOptions
               .slice()
               .sort((a, b) => a.price - b.price)
@@ -159,17 +163,43 @@ export function FlightCard({ flight }: { flight: Flight }) {
                 <span
                   key={pos.countryCode}
                   title={`${pos.countryName}: ${formatPrice(convertCurrency(pos.price, preferredCurrency), preferredCurrency)}`}
-                  className="text-base leading-none cursor-default"
+                  className="text-lg sm:text-base leading-none cursor-default"
                 >
                   {pos.flagEmoji}
                 </span>
               ))}
             {flight.posOptions.length > 6 && (
-              <span className="text-[10px] text-muted-foreground ml-0.5">+{flight.posOptions.length - 6}</span>
+              <span className="text-xs sm:text-[10px] text-muted-foreground ml-1 sm:ml-0.5">+{flight.posOptions.length - 6}</span>
             )}
           </div>
-          <button className="mt-1 text-muted-foreground transition-colors hover:text-white">
+
+          <div className="hidden sm:flex items-center gap-1.5 sm:order-2">
+            <Badge variant="outline" className="border-electric/30 bg-electric/10 text-[10px] text-electric px-2 py-0.5">
+              Best Price: {cheapest.flagEmoji} {cheapest.countryName}
+            </Badge>
+            <SmallRiskBadge level={cheapest.riskLevel} />
+          </div>
+
+          <div className="text-right sm:order-1">
+            <div className="text-2xl sm:text-lg font-bold text-white">
+              {formatPrice(convertedPrice, preferredCurrency)}
+            </div>
+            {!noFxFeeCard && (
+              <div className="text-xs sm:text-[10px] text-muted-foreground mt-0.5">
+                + {formatPrice(fxFee, preferredCurrency)} est. FX fee (3%)
+              </div>
+            )}
+          </div>
+
+          <button className="hidden sm:block mt-1 text-muted-foreground transition-colors hover:text-white sm:order-4">
             {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </button>
+        </div>
+
+        {/* Mobile expand caret bottom center */}
+        <div className="flex w-full justify-center sm:hidden mt-2 border-t border-navy-700/30 pt-3">
+          <button className="text-muted-foreground transition-colors hover:text-white">
+            {expanded ? <ChevronUp className="h-6 w-6" /> : <ChevronDown className="h-6 w-6" />}
           </button>
         </div>
       </div>

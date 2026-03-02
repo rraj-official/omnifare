@@ -20,15 +20,15 @@ export function BudgetTracker() {
       animate={{ opacity: 1, x: 0 }}
       className="fixed bottom-6 right-6 z-50"
     >
-      <div className="flex items-center gap-3 rounded-xl border border-navy-700 bg-navy-900/95 px-4 py-3 shadow-2xl backdrop-blur-sm">
-        <div className="relative h-10 w-10">
+      <div className="flex items-center gap-1.5 rounded-lg border border-navy-700 bg-navy-900/95 px-2 py-1.5 shadow-2xl backdrop-blur-sm">
+        <div className="relative h-6 w-6">
           {isUnlimited ? (
-            <div className="flex h-10 w-10 items-center justify-center">
-              <Infinity className="h-6 w-6 text-electric" />
+            <div className="flex h-6 w-6 items-center justify-center">
+              <Infinity className="h-3.5 w-3.5 text-electric" />
             </div>
           ) : (
             <>
-              <svg className="h-10 w-10 -rotate-90" viewBox="0 0 36 36">
+              <svg className="h-6 w-6 -rotate-90" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(59,130,246,0.15)" strokeWidth="3" />
                 <circle
                   cx="18" cy="18" r="15.5" fill="none"
@@ -37,17 +37,17 @@ export function BudgetTracker() {
                   strokeLinecap="round"
                 />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+              <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold text-white">
                 {used}%
               </span>
             </>
           )}
         </div>
         <div className="flex flex-col">
-          <span className="text-xs font-medium text-white">
+          <span className="text-[10px] font-medium leading-none text-white">
             {isUnlimited ? "Unlimited" : "Usage"}
           </span>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[8px] leading-tight text-muted-foreground mt-0.5">
             {isUnlimited ? "Pro access" : `${apiCallsMade}/${maxApiLimit}`}
           </span>
         </div>
@@ -56,8 +56,8 @@ export function BudgetTracker() {
           onMouseEnter={() => setShowTooltip(true)}
           onMouseLeave={() => setShowTooltip(false)}
         >
-          <button className="cursor-pointer text-muted-foreground transition-colors hover:text-electric">
-            <Info className="h-3.5 w-3.5" />
+          <button className="cursor-pointer text-muted-foreground transition-colors hover:text-electric flex items-center h-full">
+            <Info className="h-3 w-3" />
           </button>
 
           <AnimatePresence>

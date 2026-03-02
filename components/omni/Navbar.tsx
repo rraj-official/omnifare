@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppState } from "@/hooks/useAppState";
 import { countries } from "@/lib/mockFlights";
-import { PlaneTakeoff, LogOut, User, Globe, Coins } from "lucide-react";
+import { PlaneTakeoff, LogOut, User, Globe, Coins, Settings } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -51,6 +52,7 @@ export function Navbar() {
           </Link>
 
           <div className="flex items-center gap-3">
+            {/* Desktop Selectors */}
             <div className="hidden items-center gap-2 sm:flex">
               <Globe className="h-4 w-4 text-muted-foreground" />
               <Select value={homeCountry} onValueChange={(v) => {
@@ -85,6 +87,59 @@ export function Navbar() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Mobile Settings Icon */}
+            <div className="flex sm:hidden">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-white">
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[220px] border-navy-700 bg-navy-800 p-3" align="end">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Globe className="h-3.5 w-3.5" /> Country
+                      </label>
+                      <Select value={homeCountry} onValueChange={(v) => {
+                        setHomeCountry(v);
+                        const c = countries.find((c) => c.code === v);
+                        if (c) setPreferredCurrency(c.currency);
+                      }}>
+                        <SelectTrigger className="h-8 w-full border-navy-700 bg-navy-900 text-sm">
+                          <SelectValue placeholder="Country" />
+                        </SelectTrigger>
+                        <SelectContent className="border-navy-700 bg-navy-900">
+                          {countries.map((c) => (
+                            <SelectItem key={c.code} value={c.code} className="text-sm">
+                              {c.flagEmoji} {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Coins className="h-3.5 w-3.5" /> Currency
+                      </label>
+                      <Select value={preferredCurrency} onValueChange={setPreferredCurrency}>
+                        <SelectTrigger className="h-8 w-full border-navy-700 bg-navy-900 text-sm">
+                          <SelectValue placeholder="Currency" />
+                        </SelectTrigger>
+                        <SelectContent className="border-navy-700 bg-navy-900">
+                          {countries.map((c) => (
+                            <SelectItem key={c.currency} value={c.currency} className="text-sm">
+                              {c.symbol} {c.currency}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {isLoggedIn ? (

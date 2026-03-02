@@ -109,9 +109,9 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
     >
       <div className="rounded-xl border border-navy-700/50 bg-navy-900/95 p-4 shadow-2xl backdrop-blur-sm sm:p-6">
         {/* Trip controls row */}
-        <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center">
           <Select value={tripType} onValueChange={setTripType}>
-            <SelectTrigger className="h-8 w-[140px] border-navy-700 bg-navy-800 text-sm">
+            <SelectTrigger className="!h-[48px] w-full sm:!h-8 sm:w-[140px] border-navy-700 bg-navy-800 text-sm">
               <ArrowLeftRight className="mr-1.5 h-3.5 w-3.5" />
               <SelectValue />
             </SelectTrigger>
@@ -124,7 +124,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
 
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 border-navy-700 bg-navy-800 text-sm">
+              <Button variant="outline" className="!h-[48px] w-full sm:!h-8 sm:w-auto px-3 border-navy-700 bg-navy-800 text-sm">
                 <Users className="mr-1.5 h-3.5 w-3.5" />
                 {passengers}
                 <ChevronDown className="ml-1 h-3 w-3" />
@@ -143,7 +143,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
           </Popover>
 
           <Select value={cabinClass} onValueChange={setCabinClass}>
-            <SelectTrigger className="h-8 w-[150px] border-navy-700 bg-navy-800 text-sm">
+            <SelectTrigger className="!h-[48px] w-full sm:!h-8 sm:w-[150px] border-navy-700 bg-navy-800 text-sm col-span-2 sm:col-span-1">
               <Armchair className="mr-1.5 h-3.5 w-3.5" />
               <SelectValue />
             </SelectTrigger>
@@ -159,11 +159,11 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
         {/* Main search row */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
           {/* Origin + Destination */}
-          <div className="relative flex flex-1 flex-col gap-3 sm:flex-row sm:gap-0">
+          <div className="relative flex flex-row gap-2 sm:flex-1 sm:gap-0">
             <Popover open={originOpen} onOpenChange={setOriginOpen}>
               <PopoverTrigger asChild>
-                <button className="flex h-14 flex-1 items-center gap-3 rounded-lg border border-navy-700 bg-navy-800 px-4 text-left transition-colors hover:border-electric/40 sm:rounded-r-none sm:border-r-0">
-                  <CircleDot className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <button className="flex h-[48px] sm:h-14 flex-1 items-center gap-3 rounded-lg border border-navy-700 bg-navy-800 px-3 sm:px-4 text-left transition-colors hover:border-electric/40 sm:rounded-r-none sm:border-r-0">
+                  <CircleDot className="hidden sm:block h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
                     {originAirport ? (
                       <>
@@ -195,15 +195,15 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
 
             <button
               onClick={swapAirports}
-              className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-navy-600 bg-navy-900 p-2 transition-colors hover:bg-navy-700 sm:relative sm:left-auto sm:top-auto sm:translate-x-0 sm:translate-y-0 sm:self-center sm:-mx-3"
+              className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-navy-600 bg-navy-900 p-2 ring-4 ring-navy-900 transition-colors hover:bg-navy-700 sm:relative sm:left-auto sm:top-auto sm:translate-x-0 sm:translate-y-0 sm:self-center sm:-mx-3 sm:ring-0"
             >
               <ArrowLeftRight className="h-4 w-4 text-electric" />
             </button>
 
             <Popover open={destOpen} onOpenChange={setDestOpen}>
               <PopoverTrigger asChild>
-                <button className="flex h-14 flex-1 items-center gap-3 rounded-lg border border-navy-700 bg-navy-800 px-4 text-left transition-colors hover:border-electric/40 sm:rounded-l-none">
-                  <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <button className="flex h-[48px] sm:h-14 flex-1 items-center gap-3 rounded-lg border border-navy-700 bg-navy-800 px-3 sm:px-4 text-left transition-colors hover:border-electric/40 sm:rounded-l-none">
+                  <MapPin className="hidden sm:block h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
                     {destAirport ? (
                       <>
@@ -235,10 +235,10 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
           </div>
 
           {/* Date Pickers */}
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex">
             <Popover>
               <PopoverTrigger asChild>
-                <button className="flex h-14 min-w-[150px] items-center gap-2 rounded-lg border border-navy-700 bg-navy-800 px-4 text-left transition-colors hover:border-electric/40">
+                <button className="flex h-[48px] w-full sm:h-14 sm:min-w-[150px] items-center gap-2 rounded-lg border border-navy-700 bg-navy-800 px-4 text-left transition-colors hover:border-electric/40">
                   <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div>
                     <div className="text-sm font-medium text-white">
@@ -261,7 +261,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
             {tripType === "round-trip" && (
               <Popover>
                 <PopoverTrigger asChild>
-                  <button className="flex h-14 min-w-[150px] items-center gap-2 rounded-lg border border-navy-700 bg-navy-800 px-4 text-left transition-colors hover:border-electric/40">
+                  <button className="flex h-[48px] w-full sm:h-14 sm:min-w-[150px] items-center gap-2 rounded-lg border border-navy-700 bg-navy-800 px-4 text-left transition-colors hover:border-electric/40">
                     <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div>
                       <div className="text-sm font-medium text-white">
@@ -285,7 +285,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-4 flex items-center justify-end gap-3">
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
           <AnimatePresence>
             {validationError && (
               <motion.p
@@ -298,8 +298,8 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
               </motion.p>
             )}
           </AnimatePresence>
-          <Button onClick={handleSearch} className="h-10 gap-2 rounded-full bg-electric px-6 text-white hover:bg-electric-dark">
-            <Search className="h-4 w-4" />
+          <Button onClick={handleSearch} className="!h-[48px] w-full sm:!h-10 sm:w-auto gap-2 rounded-xl sm:rounded-full bg-electric px-6 text-white hover:bg-electric-dark font-semibold sm:font-medium text-base sm:text-sm">
+            <Search className="h-5 w-5 sm:h-4 sm:w-4" />
             Search
           </Button>
         </div>

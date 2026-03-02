@@ -81,16 +81,16 @@ function ProviderIcon({ title, website }: { title: string; website?: string }) {
 
   if (favicon && !imgError) {
     return (
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
-        <img src={favicon} alt={title} className="h-6 w-6 object-contain" onError={() => setImgError(true)} />
+      <div className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+        <img src={favicon} alt={title} className="h-5 w-5 sm:h-6 sm:w-6 object-contain" onError={() => setImgError(true)} />
       </div>
     );
   }
 
   const initials = title.split(/[\s.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-navy-700/50">
-      <span className="text-[10px] font-bold text-muted-foreground">{initials || "?"}</span>
+    <div className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-navy-700/50">
+      <span className="text-[10px] sm:text-xs font-bold text-muted-foreground">{initials || "?"}</span>
     </div>
   );
 }
@@ -372,7 +372,7 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
           </div>
 
           {/* FX fee card toggle */}
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-navy-700/50 bg-navy-800/50 px-3 py-2 text-xs text-muted-foreground transition hover:border-navy-600">
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-1 sm:border sm:border-navy-700/50 sm:bg-navy-800/50 sm:px-3 py-2 text-xs text-muted-foreground transition hover:border-navy-600">
             <input
               type="checkbox"
               className="h-3.5 w-3.5 cursor-pointer accent-electric"
@@ -459,9 +459,9 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
                   </div>
 
                   {/* Right: price + button */}
-                  <div className="flex items-center gap-4 sm:shrink-0">
-                    <div className="text-right">
-                      <div className="text-base font-bold text-white">
+                  <div className="mt-2 flex w-full flex-row items-center gap-3 border-t border-navy-700/50 pt-3 sm:mt-0 sm:w-auto sm:border-0 sm:pt-0 sm:shrink-0 sm:gap-4">
+                    <div className="flex-1 text-left sm:text-right">
+                      <div className="text-xl sm:text-base font-bold text-white">
                         {formatPrice(convertCurrency(option.price, preferredCurrency), preferredCurrency)}
                       </div>
                       {isForeign && !noFxFeeCard && (
@@ -478,11 +478,11 @@ export function BookingProviders({ posOptions }: BookingProvidersProps) {
                       size="sm"
                       disabled={isLoading}
                       onClick={() => handleContinue(option)}
-                      className="cursor-pointer gap-1.5 bg-electric text-white hover:bg-electric-dark"
+                      className="flex-1 sm:flex-initial h-11 sm:h-9 cursor-pointer justify-center gap-1.5 bg-electric text-white hover:bg-electric-dark font-medium"
                     >
-                      {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                      {isLoading ? <Loader2 className="h-3.5 w-3.5 sm:h-3 sm:w-3 animate-spin" /> : null}
                       Continue
-                      <ExternalLink className="h-3 w-3" />
+                      <ExternalLink className="h-4 w-4 sm:h-3 sm:w-3" />
                     </Button>
                   </div>
                 </motion.div>

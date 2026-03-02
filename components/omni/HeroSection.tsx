@@ -49,8 +49,8 @@ export function HeroSection() {
         transition={{ duration: 0.6 }}
         className="relative z-10 text-center"
       >
-        <h1 className="text-5xl font-light tracking-tight text-white">Flights</h1>
-        <p className="mt-2 text-sm text-electric-light/70">
+        <h1 className="text-4xl sm:text-5xl font-light tracking-tight text-white">Flights</h1>
+        <p className="mt-2 text-xs sm:text-sm text-electric-light/70">
           Comparing prices across 190+ countries to find you the best deal
         </p>
       </motion.div>

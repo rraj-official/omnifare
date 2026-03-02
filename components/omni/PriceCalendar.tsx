@@ -82,13 +82,12 @@ export function PriceCalendar({ selected, onSelect, showPrices, livePrices, load
               key={key}
               onClick={() => !isPast && onSelect(day)}
               disabled={isPast}
-              className={`flex flex-col items-center rounded-lg py-1.5 text-center transition-colors ${
-                isSelected
+              className={`flex flex-col items-center rounded-lg py-1.5 text-center transition-colors ${isSelected
                   ? "bg-electric text-white"
                   : isPast
                     ? "cursor-not-allowed opacity-30"
                     : "hover:bg-navy-700"
-              } ${!isCurrentMonth ? "opacity-50" : ""}`}
+                } ${!isCurrentMonth ? "opacity-50" : ""}`}
             >
               <span className={`text-xs ${isSelected ? "font-bold text-white" : isToday(day) ? "font-bold text-electric" : "text-white"}`}>
                 {format(day, "d")}
@@ -98,8 +97,8 @@ export function PriceCalendar({ selected, onSelect, showPrices, livePrices, load
                   ? <span className="text-[8px] text-muted-foreground/40">…</span>
                   : price
                     ? <span className={`text-[8px] leading-tight ${isSelected ? "text-white/80" : getPriceColor(price)}`}>
-                        ₹{(price / 1000).toFixed(1)}k
-                      </span>
+                      {price >= 1000 ? `${(price / 1000).toFixed(1)}k` : price.toFixed(0)}
+                    </span>
                     : null
               )}
             </button>

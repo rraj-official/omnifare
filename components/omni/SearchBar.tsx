@@ -20,6 +20,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const { isLoggedIn, setShowAuthModal } = useAuth();
   const {
+    preferredCurrency,
     origin, setOrigin,
     destination, setDestination,
     departureDate, setDepartureDate,
@@ -46,7 +47,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
     fetch("/api/geoarb/calendar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origin, destination }),
+      body: JSON.stringify({ origin, destination, currency: preferredCurrency }),
       signal: ac.signal,
     })
       .then((r) => r.json())
@@ -62,7 +63,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
           setCalendarPrices(map);
         }
       })
-      .catch(() => {/* silently ignore — calendar is optional */})
+      .catch(() => {/* silently ignore — calendar is optional */ })
       .finally(() => { if (!ac.signal.aborted) setLoadingPrices(false); });
     return () => ac.abort();
   }, [origin, destination]);

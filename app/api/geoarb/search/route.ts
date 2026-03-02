@@ -13,20 +13,20 @@ import {
 // ── Airport → Country mapping ────────────────────────────────
 
 const AIRPORT_COUNTRY: Record<string, string> = {
-  LHR: "GB", LGW: "GB", STN: "GB", MAN: "GB",
-  NRT: "JP", HND: "JP", KIX: "JP",
-  DEL: "IN", BOM: "IN", BLR: "IN", MAA: "IN", HYD: "IN", CCU: "IN", GOI: "IN",
-  JFK: "US", LAX: "US", ORD: "US", SFO: "US", ATL: "US", MIA: "US",
-  DXB: "AE", AUH: "AE",
-  SIN: "SG", IST: "TR", SAW: "TR",
-  GRU: "BR", GIG: "BR",
-  CDG: "FR", ORY: "FR", FRA: "DE", MUC: "DE",
-  ICN: "KR", PUS: "KR", BKK: "TH", HKT: "TH",
-  KUL: "MY", CGK: "ID", DPS: "ID", MNL: "PH",
-  MEX: "MX", BOG: "CO", SCL: "CL", CAI: "EG", EZE: "AR",
-  HAN: "VN", SGN: "VN", PEK: "CN", PVG: "CN",
-  HKG: "HK", TPE: "TW", SYD: "AU", MEL: "AU", AKL: "NZ",
-  YYZ: "CA", YVR: "CA",
+  // India
+  DEL: "IN", BOM: "IN", BLR: "IN", MAA: "IN", HYD: "IN", CCU: "IN", GOI: "IN", AMD: "IN", PNQ: "IN", COK: "IN",
+  // Middle East
+  DXB: "AE", AUH: "AE", DOH: "QA", IST: "TR", SAW: "TR", JED: "SA", RUH: "SA", CAI: "EG",
+  // Asia Pacific
+  SIN: "SG", KUL: "MY", BKK: "TH", HKG: "HK", NRT: "JP", HND: "JP", ICN: "KR", TPE: "TW", SGN: "VN", HAN: "VN", CGK: "ID", SYD: "AU", MEL: "AU", AKL: "NZ",
+  // Europe
+  LHR: "GB", LGW: "GB", CDG: "FR", FRA: "DE", MUC: "DE", AMS: "NL", MAD: "ES", BCN: "ES", FCO: "IT", MXP: "IT", ZRH: "CH",
+  // North America
+  JFK: "US", EWR: "US", LAX: "US", SFO: "US", ORD: "US", DFW: "US", ATL: "US", MIA: "US", YYZ: "CA", YVR: "CA",
+  // Latin America
+  GRU: "BR", GIG: "BR", EZE: "AR", BOG: "CO", MEX: "MX", SCL: "CL",
+  // Africa
+  JNB: "ZA", CPT: "ZA", LOS: "NG", ADD: "ET", NBO: "KE",
 };
 
 // ── Country info ─────────────────────────────────────────────

@@ -4,11 +4,20 @@ import { getCalendarForPOS, type CalendarDay } from "@/lib/flightApiService";
 // ── Airport → Country ────────────────────────────────────────
 
 const AIRPORT_COUNTRY: Record<string, string> = {
-  LHR: "GB", LGW: "GB", DEL: "IN", BOM: "IN", BLR: "IN", JFK: "US",
-  LAX: "US", DXB: "AE", SIN: "SG", IST: "TR", NRT: "JP", HND: "JP",
-  CDG: "FR", FRA: "DE", BKK: "TH", SYD: "AU", HKG: "HK", ICN: "KR",
-  GRU: "BR", CAI: "EG", EZE: "AR", HAN: "VN", SGN: "VN", KUL: "MY",
-  GOI: "IN", MAA: "IN", HYD: "IN", CCU: "IN", MIA: "US", ORD: "US",
+  // India
+  DEL: "IN", BOM: "IN", BLR: "IN", MAA: "IN", HYD: "IN", CCU: "IN", GOI: "IN", AMD: "IN", PNQ: "IN", COK: "IN",
+  // Middle East
+  DXB: "AE", AUH: "AE", DOH: "QA", IST: "TR", SAW: "TR", JED: "SA", RUH: "SA", CAI: "EG",
+  // Asia Pacific
+  SIN: "SG", KUL: "MY", BKK: "TH", HKG: "HK", NRT: "JP", HND: "JP", ICN: "KR", TPE: "TW", SGN: "VN", HAN: "VN", CGK: "ID", SYD: "AU", MEL: "AU", AKL: "NZ",
+  // Europe
+  LHR: "GB", LGW: "GB", CDG: "FR", FRA: "DE", MUC: "DE", AMS: "NL", MAD: "ES", BCN: "ES", FCO: "IT", MXP: "IT", ZRH: "CH",
+  // North America
+  JFK: "US", EWR: "US", LAX: "US", SFO: "US", ORD: "US", DFW: "US", ATL: "US", MIA: "US", YYZ: "CA", YVR: "CA",
+  // Latin America
+  GRU: "BR", GIG: "BR", EZE: "AR", BOG: "CO", MEX: "MX", SCL: "CL",
+  // Africa
+  JNB: "ZA", CPT: "ZA", LOS: "NG", ADD: "ET", NBO: "KE",
 };
 
 function countryForAirport(iata: string): string {

@@ -176,7 +176,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
                   </div>
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-[300px] border-navy-700 bg-navy-800 p-2" align="start">
+              <PopoverContent className="w-[300px] max-h-[300px] overflow-y-auto border-navy-700 bg-navy-800 p-2" align="start">
                 {airports.map((a) => (
                   <button
                     key={a.code}
@@ -216,7 +216,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
                   </div>
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-[300px] border-navy-700 bg-navy-800 p-2" align="start">
+              <PopoverContent className="w-[300px] max-h-[300px] overflow-y-auto border-navy-700 bg-navy-800 p-2" align="start">
                 {airports.filter((a) => a.code !== origin).map((a) => (
                   <button
                     key={a.code}

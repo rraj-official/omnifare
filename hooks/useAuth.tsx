@@ -66,10 +66,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     const supabase = getSupabase();
 
+    // Check URL hash for session tokens first (from our backend OAuth redirect)
+    if (typeof window !== "undefined" && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const access_token = hashParams.get("access_token");
+      const refresh_token = hashParams.get("refresh_token");
+
+      if (access_token && refresh_token) {
+        // Set the session locally using the tokens from the URL
+        supabase.auth.setSession({ access_token, refresh_token }).then(({ data, error }) => {
+          if (mounted && !error) {
+            setSession(data.session);
+            setLoading(false);
+            setShowAuthModal(false);
+            // Clean up the hash
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          }
+        });
+      }
+    }
+
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       if (mounted) {
-        setSession(s);
-        setLoading(false);
+        setSession((prev) => s || prev);
+        if (!s && !window.location.hash) setLoading(false);
       }
     });
 
@@ -106,13 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabaseUser]);
 
   const login = useCallback(() => {
-    const supabase = getSupabase();
-    supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    window.location.href = "/api/auth/google";
   }, []);
 
   const logout = useCallback(async () => {
@@ -143,10 +157,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const user = supabaseUser
     ? {
-        name: nameFromUser(supabaseUser),
-        email: supabaseUser.email ?? "",
-        avatar: avatarFromUser(supabaseUser),
-      }
+      name: nameFromUser(supabaseUser),
+      email: supabaseUser.email ?? "",
+      avatar: avatarFromUser(supabaseUser),
+    }
     : null;
 
   return (
